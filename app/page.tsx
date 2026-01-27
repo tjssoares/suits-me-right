@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createBrowserClient } from '@supabase/ssr';
 
 export default function HomePage() {
   const [query, setQuery] = useState('');
@@ -9,7 +9,10 @@ export default function HomePage() {
   const [compareList, setCompareList] = useState<any[]>([]); // Track items to compare
   const [analysis, setAnalysis] = useState<{ summary: string; score: number } | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const supabase = createClientComponentClient();
+  const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
   const fetchHistory = async () => {
     const { data: { session } } = await supabase.auth.getSession();
