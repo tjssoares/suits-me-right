@@ -31,9 +31,6 @@
     "typescript": "5.9.3"
   },
   "pnpm": {
-    "onlyBuiltDependencies": [
-      "sharp",
-      "unrs-resolver"
-    ]
+   "onlyBuiltDependencies": ["sharp", "unrs-resolver"]
   }
 }
