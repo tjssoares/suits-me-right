@@ -1,15 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Move turbo out of experimental to the top level
+  // Turbopack is now stable and top-level in Next.js 16
   turbopack: {
-    // If you had specific rules like SVGR, they go here
+    // Custom rules go here if needed
   },
+
+  // Note: 'eslint' and 'experimental.turbo' are removed 
+  // as they cause hangs in Next.js 16
   
-  // REMOVE the 'eslint' block entirely. 
-  // Next.js 16 handles this via eslint.config.mjs now.
-  
-  // Your other existing settings (images, redirects, etc.)
   images: {
     remotePatterns: [
       {
