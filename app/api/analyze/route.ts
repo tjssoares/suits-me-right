@@ -37,7 +37,7 @@ export async function POST(req: Request) {
     
     // Using 1.5-flash: It has a much more stable free quota than 2.0 right now.
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-flash",
+      model: "gemini-flash-latest",
       // This is the "Brain" - it lets Gemini use Google Search
       tools: [{ googleSearchRetrieval: {} }] 
     });
