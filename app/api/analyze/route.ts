@@ -1,58 +1,74 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { createClient } from "@supabase/supabase-js";
+import { GoogleGenerativeAI, DynamicRetrievalMode } from "@google/generative-ai";
 import { NextResponse } from "next/server";
+import { createClient } from '@supabase/supabase-js';
 
-export const dynamic = 'force-dynamic';
+// Initialize Supabase (for the "Caching" logic we discussed)
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY! // Use service role for backend writes
+);
 
-export async function POST(request) {
-  // 1. Initialize EVERYTHING inside the function to protect the build
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-  
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!, 
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-
+export async function POST(req: Request) {
   try {
-    // 2. Parse the request body (Note: 'request' is the correct variable name)
-    const { productQuery, userId } = await request.json();
+    const { productQuery, userId } = await req.json();
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-001" });
+    if (!productQuery) {
+      return NextResponse.json({ error: "No product query provided" }, { status: 400 });
+    }
+
+    // --- STEP 1: CHECK CACHE (Save Quota!) ---
+    const { data: existingSearch } = await supabase
+      .from('search_history')
+      .select('*')
+      .eq('product_name', productQuery.toLowerCase().trim())
+      .single();
+
+    if (existingSearch) {
+      console.log("Found in cache! Using existing data.");
+      return NextResponse.json({
+        summary: existingSearch.analysis_summary,
+        score: existingSearch.durability_score,
+        cached: true
+      });
+    }
+
+    // --- STEP 2: CALL AI (If not in cache) ---
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+    
+    // Using 1.5-flash: It has a much more stable free quota than 2.0 right now.
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash",
+      // This is the "Brain" - it lets Gemini use Google Search
+      tools: [{ googleSearchRetrieval: {} }] 
+    });
 
     const prompt = `
-      Analyze the durability and long-term value of: ${productQuery}. 
-      Synthesize 1,000+ customer reviews. 
-      Provide a 250-word synthesis including:
-      1. Key failure points.
-      2. Expected lifespan.
-      3. A durability score out of 100.
-      Return the response in JSON format: { "summary": "text", "score": number }
+      You are a product durability expert. Search for real customer reviews and teardowns for: "${productQuery}".
+      Provide:
+      1. A 3-sentence summary of the build quality and common failure points.
+      2. A "Durability Score" from 1-100 based on long-term reliability.
+      Return ONLY a JSON object like this: {"summary": "...", "score": 85}
     `;
 
     const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
+    const responseText = result.response.text();
     
-    // Clean JSON parsing: sometimes AI returns markdown backticks, let's strip them
-    const cleanedText = text.replace(/```json|```/g, "").trim();
-    const data = JSON.parse(cleanedText);
+    // Clean up the response (AI sometimes adds markdown blocks)
+    const cleanedJson = responseText.replace(/```json|```/g, "").trim();
+    const analysis = JSON.parse(cleanedJson);
 
-    // 3. Save to history if user is logged in
-    if (userId) {
-      const { error } = await supabase.from('search_history').insert({
-        user_id: userId,
-        product_name: productQuery,
-        analysis_summary: data.summary,
-        durability_score: data.score
-      });
-      
-      if (error) console.error("Supabase storage error:", error);
-    }
+    // --- STEP 3: SAVE TO DB (For the next user) ---
+    await supabase.from('search_history').insert({
+      user_id: userId || null, // Works for guests too
+      product_name: productQuery.toLowerCase().trim(),
+      analysis_summary: analysis.summary,
+      durability_score: analysis.score
+    });
 
-    return NextResponse.json(data);
+    return NextResponse.json(analysis);
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Analyze API Error:", error);
-    return NextResponse.json({ error: "Failed to process analysis" }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
