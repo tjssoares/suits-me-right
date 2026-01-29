@@ -2,10 +2,8 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 import { createClient } from '@supabase/supabase-js';
 
-// Force dynamic ensures Vercel doesn't try to "pre-build" this during deployment
 export const dynamic = 'force-dynamic';
 
-// Initialize Supabase
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -19,7 +17,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No product query provided" }, { status: 400 });
     }
 
-    // --- STEP 1: CHECK CACHE (Save Quota!) ---
+    // 1. Check Cache
     const { data: existingSearch } = await supabase
       .from('search_history')
       .select('*')
@@ -27,7 +25,6 @@ export async function POST(req: Request) {
       .single();
 
     if (existingSearch) {
-      console.log("Found in cache! Using existing data.");
       return NextResponse.json({
         summary: existingSearch.analysis_summary,
         score: existingSearch.durability_score,
@@ -35,25 +32,32 @@ export async function POST(req: Request) {
       });
     }
 
-    // --- STEP 2: CALL AI (The 2026 Optimized Way) ---
+    // 2. Call Gemini
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-    
-    // We use v1beta to access the new 'googleSearch' tool
     const model = genAI.getGenerativeModel({ 
       model: "gemini-3-flash", 
-      tools: [{ googleSearch: {} }] // Updated from googleSearchRetrieval
+      tools: [{ googleSearch: {} }] 
     }, { apiVersion: 'v1beta' });
 
-    const prompt = `
-      Perform a search for real customer reviews and durability teardowns for: "${productQuery}".
-      Synthesize the findings into:
-      1. A 3-sentence summary of build quality and failure points.
-      2. A "Durability Score" from 1-100.
-      Return ONLY a JSON object: {"summary": "...", "score": 85}
-    `;
+    const prompt = `Search for durability reviews of: "${productQuery}". Return ONLY JSON: {"summary": "...", "score": 85}`;
 
     const result = await model.generateContent(prompt);
     const responseText = result.response.text();
-    
-    // Clean up response if AI includes markdown code blocks
-    const
+    const cleanedJson = responseText.replace(/```json|```/g, "").trim();
+    const analysis = JSON.parse(cleanedJson);
+
+    // 3. Save to DB
+    await supabase.from('search_history').insert({
+      user_id: userId || null,
+      product_name: productQuery.toLowerCase().trim(),
+      analysis_summary: analysis.summary,
+      durability_score: analysis.score
+    });
+
+    return NextResponse.json(analysis);
+
+  } catch (error: any) {
+    console.error("API Error:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+} // <--- Ensure this last bracket is included!
