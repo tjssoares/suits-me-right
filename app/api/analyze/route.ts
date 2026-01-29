@@ -34,8 +34,10 @@ export async function POST(req: Request) {
 
     // 2. Call Gemini
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+    
+    // FIXED: Removed the extra "model:" text inside the quotes
     const model = genAI.getGenerativeModel({ 
-      model: "model: "gemini-3-flash-preview", 
+      model: "gemini-3-flash-preview", 
       tools: [{ googleSearch: {} }] 
     }, { apiVersion: 'v1beta' });
 
@@ -60,4 +62,4 @@ export async function POST(req: Request) {
     console.error("API Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-} // <--- Ensure this last bracket is included!
+}
