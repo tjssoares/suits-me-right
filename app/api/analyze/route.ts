@@ -14,21 +14,9 @@ export async function POST(req: Request) {
     const { productQuery, userId } = await req.json();
 
     if (!productQuery) {
-      return NextResponse.json({ error: "No product query provided" }, { status: 400 });
+      return NextResponse.json({ error: "No query provided" }, { status: 400 });
     }
 
-    // 1. Check Cache (Optional: comment this out if you want fresh results every time during testing)
-    const { data: existingSearch } = await supabase
-      .from('search_history')
-      .select('*')
-      .eq('product_name', productQuery.toLowerCase().trim())
-      .single();
-
-    if (existingSearch && existingSearch.metadata) {
-      return NextResponse.json(existingSearch.metadata);
-    }
-
-    // 2. Call Gemini (Premium Research Mode)
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
     const model = genAI.getGenerativeModel({ 
       model: "gemini-3-flash-preview", 
@@ -36,44 +24,48 @@ export async function POST(req: Request) {
     }, { apiVersion: 'v1beta' });
 
     const prompt = `
-      Act as a Lead Product Engineer. Perform a deep-dive durability audit for: "${productQuery}".
+      Act as a Lead Product Engineer. Deeply analyze: "${productQuery}".
       
-      Research Tasks:
-      1. Search for long-term reliability reports and teardowns.
-      2. Compare build materials and longevity against 2 direct market competitors.
-      3. Identify specific weak points (e.g., specific capacitors, hinges, or software bloat).
+      TASKS:
+      1. Find the official product image URL.
+      2. Find 3 current vendors with prices and direct links.
+      3. Rate durability 0-100 (0=Junk, 100=Heirloom).
+      4. Suggest 1 "Ideal Alternative" that might be better based on longevity.
 
-      Return ONLY a JSON object with this structure:
+      Return ONLY JSON:
       {
-        "summary": "3-sentence professional overview.",
+        "summary": "3-sentence review",
         "score": 85,
-        "pros": ["strength 1", "strength 2"],
-        "cons": ["weakness 1", "weakness 2"],
-        "common_failures": ["Specific component failure 1", "Failure 2"],
-        "market_position": "How it ranks vs competitors (e.g., 'Best in class for hinges, but worse battery than Brand X').",
-        "expected_lifespan": "e.g., 4-6 years with heavy use",
-        "repairability": "Easy/Moderate/Difficult"
+        "score_label": "85/100 - Built to Last",
+        "image_url": "Direct link to image",
+        "pros": ["..."], "cons": ["..."],
+        "vendors": [
+          {"name": "Amazon", "price": "$XX", "url": "link"},
+          {"name": "Best Buy", "price": "$XX", "url": "link"}
+        ],
+        "alternative": {
+          "name": "Product Name",
+          "reason": "Why it's better for the user",
+          "image": "URL"
+        }
       }
     `;
 
     const result = await model.generateContent(prompt);
-    const responseText = result.response.text();
-    const cleanedJson = responseText.replace(/```json|```/g, "").trim();
-    const analysis = JSON.parse(cleanedJson);
+    const analysis = JSON.parse(result.response.text().replace(/```json|```/g, "").trim());
 
-    // 3. Save to DB (Using a 'metadata' column to hold the full premium report)
+    // Save full report to metadata
     await supabase.from('search_history').upsert({
       product_name: productQuery.toLowerCase().trim(),
       analysis_summary: analysis.summary,
       durability_score: analysis.score,
-      user_id: userId || null, // Works for guest/non-registered
-      metadata: analysis // This stores the full JSON report
+      user_id: userId || null,
+      metadata: analysis
     });
 
     return NextResponse.json(analysis);
 
   } catch (error: any) {
-    console.error("API Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
