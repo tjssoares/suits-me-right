@@ -9,44 +9,54 @@ export async function POST(req: Request) {
     if (!apiKey) return NextResponse.json({ error: "API Key missing" }, { status: 500 });
 
     const genAI = new GoogleGenerativeAI(apiKey);
-
-    // FIX: Using the newer stable 'gemini-2.0-flash' or 'gemini-2.5-flash'
-    // Grounding works best with these in 2026.
+    
+    // We stick with gemini-2.0-flash as it's the most stable for search right now
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-2.0-flash", // Update to 2.0 or 2.5
-      tools: [{ googleSearch: {} }] 
+      model: "gemini-2.0-flash",
+      tools: [{ googleSearch: {} }],
+      // FORCE JSON mode at the configuration level
+      generationConfig: {
+        responseMimeType: "application/json",
+      }
     });
 
     const prompt = `
-      User Location: ${location || "United Kingdom"}
-      Search: "${productQuery}"
-      TASK: Perform a market audit. Find NEW and USED prices in £ (GBP).
-      RETURN ONLY JSON:
+      Perform a market audit for: "${productQuery}" in ${location || "United Kingdom"}.
+      You MUST return a JSON object with this EXACT structure:
       {
         "main_product": {
-          "name": "...",
-          "image": "...",
-          "stars": 4.5,
-          "new_deals": [{"vendor": "...", "price": "...", "url": "..."}],
-          "used_deals": [{"vendor": "...", "price": "...", "url": "..."}]
+          "name": "string",
+          "image": "string",
+          "stars": number,
+          "new_deals": [{"vendor": "string", "price": "string", "url": "string"}],
+          "used_deals": [{"vendor": "string", "price": "string", "url": "string"}]
         },
-        "suits_me_reason": "Detailed durability/repairability audit."
+        "suits_me_reason": "string"
       }
+      Do not include any text before or after the JSON.
     `;
 
     const result = await model.generateContent(prompt);
     const responseText = result.response.text();
 
-    // Cleaning logic remains the same
-    const cleanJson = responseText.replace(/```json|```/g, "").trim();
-    return NextResponse.json(JSON.parse(cleanJson));
+    // IMPROVED CLEANING: Use Regex to find the FIRST { and the LAST }
+    // This ignores any grounding text Google adds at the end.
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    
+    if (!jsonMatch) {
+      console.error("No JSON found in response:", responseText);
+      throw new Error("AI did not return valid JSON format.");
+    }
+
+    const cleanJson = jsonMatch[0];
+    const parsedData = JSON.parse(cleanJson);
+    
+    return NextResponse.json(parsedData);
 
   } catch (error: any) {
     console.error("Gemini Error:", error.message);
-    
-    // If 2.0 fails, it might be a regional rollout issue. Try a more generic ID.
     return NextResponse.json({ 
-      error: `Model error: ${error.message}. Try changing model to 'gemini-2.5-flash' or 'gemini-flash-latest' in route.ts.` 
+      error: `Audit failed: ${error.message}. Please try again.` 
     }, { status: 500 });
   }
 }
