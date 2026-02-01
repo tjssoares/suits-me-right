@@ -7,21 +7,23 @@ export async function POST(req: Request) {
     
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      return NextResponse.json({ error: "API Key is missing from Vercel Environment Variables." }, { status: 500 });
+      return NextResponse.json({ error: "API Key missing in Vercel" }, { status: 500 });
     }
 
+    // Initialize the API without the 'v1beta' string in the constructor
     const genAI = new GoogleGenerativeAI(apiKey);
-    // Using gemini-1.5-flash which is most stable for search
+    
+    // Fix: Remove the 'models/' prefix and ensure tool usage is correct
     const model = genAI.getGenerativeModel({ 
       model: "gemini-1.5-flash", 
       tools: [{ googleSearch: {} }] 
-    }, { apiVersion: 'v1beta' });
+    });
 
     const prompt = `
-      Perform a market audit for: "${productQuery}" in ${location || "United Kingdom"}.
+      Market audit for: "${productQuery}" in ${location || "United Kingdom"}.
       
       RULES:
-      1. Prices in local currency (£ for UK, $ for US, etc).
+      1. Provide prices in local currency (£ for UK, $ for US).
       2. Provide New and Used links.
       3. Return ONLY a JSON object.
 
@@ -29,31 +31,29 @@ export async function POST(req: Request) {
       {
         "main_product": {
           "name": "Full Name",
-          "image": "URL",
+          "image": "Direct JPG/PNG URL",
           "stars": 4.5,
           "new_deals": [{"vendor": "Name", "price": "£X", "url": "URL"}],
           "used_deals": [{"vendor": "Name", "price": "£X", "url": "URL"}]
         },
-        "suits_me_reason": "Explanation"
+        "suits_me_reason": "Detailed durability and repairability explanation."
       }
     `;
 
+    // Standard generateContent call
     const result = await model.generateContent(prompt);
     const responseText = result.response.text();
 
-    // Clean the response: remove markdown backticks if AI adds them
+    // Clean markdown and parse
     const cleanJson = responseText.replace(/```json|```/g, "").trim();
+    const parsedData = JSON.parse(cleanJson);
     
-    try {
-      const parsedData = JSON.parse(cleanJson);
-      return NextResponse.json(parsedData);
-    } catch (parseError) {
-      console.error("JSON Parse Error:", responseText);
-      return NextResponse.json({ error: "AI returned invalid data format. Try again." }, { status: 500 });
-    }
+    return NextResponse.json(parsedData);
 
   } catch (error: any) {
     console.error("Gemini API Error:", error);
-    return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
+    return NextResponse.json({ 
+      error: "Model connection failed. Please ensure Search Grounding is enabled in your Google AI Studio console." 
+    }, { status: 500 });
   }
 }
