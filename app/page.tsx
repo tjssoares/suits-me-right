@@ -7,8 +7,9 @@ export default function HomePage() {
   const [query, setQuery] = useState('');
   const [analysis, setAnalysis] = useState<any>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [location, setLocation] = useState('United Kingdom'); // Default to UK to prevent empty state
+  const [location, setLocation] = useState('United Kingdom');
   const [user, setUser] = useState<any>(null);
+  const [mounted, setMounted] = useState(false); // Safety switch
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -16,20 +17,22 @@ export default function HomePage() {
   );
 
   useEffect(() => {
-    // Check user session
+    setMounted(true); // Tell React we are safely on the client
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
     
-    // Attempt to detect location, but don't crash if it fails
+    // Detect location only on the client
     fetch('https://ipapi.co/json/')
       .then(res => res.json())
       .then(data => { if(data.country_name) setLocation(data.country_name) })
-      .catch(() => console.log("Location detection blocked or failed."));
+      .catch(() => console.warn("Location detection blocked."));
   }, []);
+
+  // Prevent rendering until mounted to stop the "Client-side Exception"
+  if (!mounted) return <div className="min-h-screen bg-black" />;
 
   const handleSearch = async (customQuery?: string) => {
     const q = customQuery || query;
     if (!q) return;
-
     setAnalysis(null);
     setIsAnalyzing(true);
     
@@ -37,131 +40,105 @@ export default function HomePage() {
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productQuery: q, userId: user?.id, location: location }),
+        body: JSON.stringify({ productQuery: q, userId: user?.id, location }),
       });
-      
-      if (!res.ok) throw new Error("Search failed");
-      
       const data = await res.json();
       setAnalysis(data);
     } catch (e) {
-      console.error("Client Error:", e);
-      alert("Something went wrong with the search. Please try again.");
+      alert("Search failed. Check your internet or API key.");
     } finally {
       setIsAnalyzing(false);
     }
   };
 
-  const StarRating = ({ rating }: { rating: number }) => (
-    <div className="flex text-yellow-500">
-      {[...Array(5)].map((_, i) => (
-        <span key={i}>{i < Math.floor(rating || 0) ? '★' : '☆'}</span>
-      ))}
-    </div>
-  );
-
   return (
     <div className="min-h-screen bg-[#020202] text-white font-sans p-4 md:p-8">
       <nav className="max-w-6xl mx-auto flex justify-between items-center mb-10">
-        <h1 className="text-xl font-black italic tracking-tighter uppercase">Suits Me Right</h1>
+        <h1 className="text-xl font-black italic uppercase tracking-tighter">Suits Me Right</h1>
         <div className="flex items-center gap-4">
-          <span className="text-[10px] bg-white/10 px-3 py-1 rounded-full text-gray-400">
-            📍 {location || "Global"}
-          </span>
+          <span className="text-[10px] bg-white/5 border border-white/10 px-3 py-1 rounded-full text-gray-500">📍 {location}</span>
           {!user ? (
-            <Link href="/login" className="text-xs font-bold border border-white/20 px-4 py-2 rounded-full">Login</Link>
+            <Link href="/login" className="text-xs font-bold border border-white/10 px-4 py-2 rounded-full hover:bg-white hover:text-black transition">Login</Link>
           ) : (
-            <span className="text-xs text-gray-500">{user.email}</span>
+            <span className="text-xs text-gray-500">{user.email?.split('@')[0]}</span>
           )}
         </div>
       </nav>
 
-      <div className="max-w-5xl mx-auto">
-        <div className="relative mb-8">
+      <div className="max-w-4xl mx-auto">
+        <div className="relative mb-12">
           <input 
             value={query} 
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            className="w-full bg-white/5 border border-white/10 p-6 rounded-[25px] text-lg outline-none focus:border-indigo-500"
-            placeholder="Search for a product..."
+            className="w-full bg-white/5 border border-white/10 p-6 rounded-[30px] text-lg outline-none focus:border-indigo-500 transition-all shadow-2xl"
+            placeholder="What are you looking for?"
           />
-          <button onClick={() => handleSearch()} disabled={isAnalyzing} className="absolute right-3 top-3 bg-indigo-600 px-6 py-3 rounded-2xl font-bold disabled:opacity-50">
-            {isAnalyzing ? "..." : "Analyze"}
+          <button onClick={() => handleSearch()} disabled={isAnalyzing} className="absolute right-3 top-3 bg-indigo-600 px-8 py-3 rounded-2xl font-bold hover:bg-indigo-500 disabled:opacity-50">
+            {isAnalyzing ? "..." : "Audit"}
           </button>
         </div>
 
-        {isAnalyzing && <div className="text-center py-20 animate-pulse text-indigo-400 font-bold italic">Auditing {location} Markets...</div>}
+        {isAnalyzing && (
+          <div className="text-center py-20">
+            <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-indigo-500 mx-auto mb-4"></div>
+            <p className="text-indigo-400 font-bold animate-pulse">Analyzing {location} market availability...</p>
+          </div>
+        )}
 
         {analysis && (
-          <div className="space-y-8 animate-in fade-in duration-500">
-            {/* Main Product Card */}
-            <div className="bg-white/5 border border-white/10 rounded-[35px] p-8 grid md:grid-cols-2 gap-8">
-              <div className="bg-black rounded-3xl p-6 flex items-center justify-center border border-white/5 min-h-[250px]">
-                <img 
-                  src={analysis.main_product?.image || ""} 
-                  className="max-h-60 object-contain" 
-                  onError={(e:any) => e.target.src='https://placehold.co/400x400?text=Product+Image'} 
-                />
-              </div>
-              <div>
-                <h2 className="text-3xl font-bold mb-2">{analysis.main_product?.name}</h2>
-                <StarRating rating={analysis.main_product?.stars} />
-                
-                {/* NEW DEALS */}
-                <div className="mt-8">
-                  <h4 className="text-[10px] font-black text-gray-500 uppercase mb-3 tracking-widest">New Deals ({location})</h4>
-                  <div className="space-y-2">
+          <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {/* Main Product */}
+            <div className="bg-white/5 border border-white/10 rounded-[40px] p-8 md:p-12">
+              <div className="grid md:grid-cols-2 gap-12 items-center">
+                <div className="bg-neutral-900 rounded-[30px] p-8 flex items-center justify-center min-h-[300px] border border-white/5 shadow-inner">
+                  <img src={analysis.main_product?.image} className="max-h-64 object-contain" onError={(e:any) => e.target.src='https://placehold.co/400x400?text=Product'} />
+                </div>
+                <div>
+                  <h2 className="text-4xl font-black mb-4 leading-tight">{analysis.main_product?.name}</h2>
+                  <div className="flex gap-1 mb-8">
+                    {[...Array(5)].map((_, i) => (
+                      <span key={i} className={i < Math.floor(analysis.main_product?.stars || 0) ? "text-yellow-400 text-2xl" : "text-white/10 text-2xl"}>★</span>
+                    ))}
+                  </div>
+
+                  <div className="space-y-4">
+                    <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Local New Deals</h4>
                     {analysis.main_product?.new_deals?.map((d:any, i:number) => (
-                      <a key={i} href={d.url} target="_blank" className="flex justify-between items-center p-4 bg-white/5 rounded-xl hover:bg-white/10 transition">
-                        <span className="font-bold text-sm">{d.vendor}</span>
-                        <span className="text-indigo-400 font-bold">{d.price} →</span>
+                      <a key={i} href={d.url} target="_blank" className="flex justify-between items-center p-4 bg-white/5 rounded-2xl border border-white/5 hover:border-indigo-500 transition group">
+                        <span className="font-bold">{d.vendor}</span>
+                        <span className="text-indigo-400 font-mono font-bold group-hover:translate-x-1 transition-transform">{d.price} →</span>
                       </a>
                     ))}
                   </div>
-                </div>
 
-                {/* USED DEALS */}
-                {analysis.main_product?.used_deals?.length > 0 && (
-                  <div className="mt-6">
-                    <h4 className="text-[10px] font-black text-green-500 uppercase mb-3 tracking-widest">Refurbished / Used</h4>
-                    <div className="space-y-2">
+                  {analysis.main_product?.used_deals?.length > 0 && (
+                    <div className="mt-8 space-y-4">
+                      <h4 className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Refurbished / Pre-owned</h4>
                       {analysis.main_product.used_deals.map((d:any, i:number) => (
-                        <a key={i} href={d.url} target="_blank" className="flex justify-between items-center p-4 bg-green-500/5 border border-green-500/20 rounded-xl hover:bg-green-500/10 transition text-sm">
-                          <span className="font-medium text-green-200">{d.vendor}</span>
-                          <span className="text-green-400 font-bold">{d.price}</span>
+                        <a key={i} href={d.url} target="_blank" className="flex justify-between items-center p-4 bg-emerald-500/5 rounded-2xl border border-emerald-500/10 hover:border-emerald-500 transition text-sm">
+                          <span className="font-medium text-emerald-100">{d.vendor}</span>
+                          <span className="text-emerald-400 font-bold">{d.price}</span>
                         </a>
                       ))}
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* SUITS ME RIGHT SECTION */}
-            <section className="bg-indigo-600/10 border border-indigo-500/30 rounded-[35px] p-10 relative overflow-hidden">
-               <h3 className="text-xl font-bold mb-4 text-indigo-400 italic">This suits me right because:</h3>
-               <div className={!user ? "filter blur-2xl opacity-20 pointer-events-none" : ""}>
-                 <p className="text-lg leading-relaxed text-indigo-100">{analysis?.suits_me_reason}</p>
+            {/* SUITS ME RIGHT (BLURRED) */}
+            <section className="bg-indigo-600/10 border border-indigo-500/20 rounded-[40px] p-10 relative overflow-hidden">
+               <h3 className="text-xl font-bold mb-6 text-indigo-300 italic">This suits me right because:</h3>
+               <div className={!user ? "filter blur-2xl opacity-10 pointer-events-none" : ""}>
+                 <p className="text-xl leading-relaxed text-indigo-50">{analysis?.suits_me_reason}</p>
                </div>
                {!user && (
-                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm">
-                   <Link href="/login" className="bg-white text-black px-8 py-3 rounded-2xl font-black shadow-xl">Unlock Member Analysis</Link>
+                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 backdrop-blur-md">
+                   <Link href="/login" className="bg-white text-black px-10 py-4 rounded-2xl font-black shadow-2xl hover:scale-105 transition">Unlock Premium Audit</Link>
                  </div>
                )}
             </section>
-
-            {/* EQUIVALENTS */}
-            <div className="grid md:grid-cols-2 gap-6">
-              {analysis.equivalents?.map((item:any, i:number) => (
-                <div key={i} className="bg-white/5 border border-white/10 p-8 rounded-[35px] hover:border-indigo-500 transition group">
-                   <img src={item.image} className="h-40 mx-auto mb-6 object-contain" onError={(e:any) => e.target.src='https://placehold.co/400x400?text=Comparison'} />
-                   <h4 className="text-xl font-bold mb-1">{item.name}</h4>
-                   <StarRating rating={item.stars} />
-                   <p className="text-sm text-gray-500 my-4">{item.diff}</p>
-                   <button onClick={() => handleSearch(item.name)} className="w-full py-3 bg-white/10 rounded-xl font-bold hover:bg-indigo-600 transition">Audit & Compare</button>
-                </div>
-              ))}
-            </div>
           </div>
         )}
       </div>
