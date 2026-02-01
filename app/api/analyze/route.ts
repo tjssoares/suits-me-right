@@ -4,56 +4,49 @@ import { NextResponse } from "next/server";
 export async function POST(req: Request) {
   try {
     const { productQuery, userId, location } = await req.json();
-    
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: "API Key missing in Vercel" }, { status: 500 });
-    }
 
-    // Initialize the API without the 'v1beta' string in the constructor
+    if (!apiKey) return NextResponse.json({ error: "API Key missing" }, { status: 500 });
+
     const genAI = new GoogleGenerativeAI(apiKey);
-    
-    // Fix: Remove the 'models/' prefix and ensure tool usage is correct
+
+    // FIX: Using the newer stable 'gemini-2.0-flash' or 'gemini-2.5-flash'
+    // Grounding works best with these in 2026.
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-flash", 
+      model: "gemini-2.0-flash", // Update to 2.0 or 2.5
       tools: [{ googleSearch: {} }] 
     });
 
     const prompt = `
-      Market audit for: "${productQuery}" in ${location || "United Kingdom"}.
-      
-      RULES:
-      1. Provide prices in local currency (£ for UK, $ for US).
-      2. Provide New and Used links.
-      3. Return ONLY a JSON object.
-
-      Structure:
+      User Location: ${location || "United Kingdom"}
+      Search: "${productQuery}"
+      TASK: Perform a market audit. Find NEW and USED prices in £ (GBP).
+      RETURN ONLY JSON:
       {
         "main_product": {
-          "name": "Full Name",
-          "image": "Direct JPG/PNG URL",
+          "name": "...",
+          "image": "...",
           "stars": 4.5,
-          "new_deals": [{"vendor": "Name", "price": "£X", "url": "URL"}],
-          "used_deals": [{"vendor": "Name", "price": "£X", "url": "URL"}]
+          "new_deals": [{"vendor": "...", "price": "...", "url": "..."}],
+          "used_deals": [{"vendor": "...", "price": "...", "url": "..."}]
         },
-        "suits_me_reason": "Detailed durability and repairability explanation."
+        "suits_me_reason": "Detailed durability/repairability audit."
       }
     `;
 
-    // Standard generateContent call
     const result = await model.generateContent(prompt);
     const responseText = result.response.text();
 
-    // Clean markdown and parse
+    // Cleaning logic remains the same
     const cleanJson = responseText.replace(/```json|```/g, "").trim();
-    const parsedData = JSON.parse(cleanJson);
-    
-    return NextResponse.json(parsedData);
+    return NextResponse.json(JSON.parse(cleanJson));
 
   } catch (error: any) {
-    console.error("Gemini API Error:", error);
+    console.error("Gemini Error:", error.message);
+    
+    // If 2.0 fails, it might be a regional rollout issue. Try a more generic ID.
     return NextResponse.json({ 
-      error: "Model connection failed. Please ensure Search Grounding is enabled in your Google AI Studio console." 
+      error: `Model error: ${error.message}. Try changing model to 'gemini-2.5-flash' or 'gemini-flash-latest' in route.ts.` 
     }, { status: 500 });
   }
 }
