@@ -3,36 +3,40 @@ import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
   try {
-    const { productQuery, userId } = await req.json();
+    const { productQuery, userId, location } = await req.json();
+    
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-flash", // Using Flash for better grounding speed
+      model: "gemini-1.5-flash", 
       tools: [{ googleSearch: {} }] 
     }, { apiVersion: 'v1beta' });
 
     const prompt = `
-      Perform a deep audit for a UK-based user: "${productQuery}".
+      User Location: ${location || "Unknown"}
+      Product: "${productQuery}"
       
-      CONSTRAINTS:
-      1. CURRENCY: All prices MUST be in GBP (£).
-      2. SUPPLIERS: Prioritize UK retailers (Amazon.co.uk, Argos, Currys, John Lewis).
-      3. IMAGES: You MUST provide a direct, public JPG/PNG URL for every product. Do not use placeholder URLs.
-      4. COMPARISON: Compare the main product against 2 key rivals.
+      INSTRUCTIONS:
+      1. If location is "Unknown", prompt for country in the "summary".
+      2. Find NEW products from local/nationwide suppliers in the local currency.
+      3. Find USED/REFURBISHED prices from eBay, BackMarket, or local marketplaces.
+      4. Provide 5-star ratings for Durability, Repairability, and Value.
+      5. "Suits Me Right" logic: Analyze if this matches a user who values sustainability.
 
       Return ONLY JSON:
       {
+        "location_status": "${location ? 'detected' : 'ask'}",
+        "currency_symbol": "£", 
         "main_product": {
           "name": "...",
-          "image": "URL",
+          "image": "Direct JPG URL",
           "stars": 4.5,
-          "description": "...",
-          "specs": ["Battery: 10hrs", "Weight: 1.2kg"],
-          "vendors": [{"name": "...", "price": "£...", "url": "..."}]
+          "new_deals": [{"vendor": "...", "price": "...", "url": "..."}],
+          "used_deals": [{"vendor": "...", "price": "...", "url": "..."}]
         },
         "equivalents": [
-          {"name": "...", "stars": 4.2, "image": "...", "price": "£...", "specs": ["..."], "why_better": "..."}
+          {"name": "...", "price": "...", "stars": 4, "image": "...", "diff": "Better battery but harder to repair"}
         ],
-        "suits_me_reason": "Because you value longevity and this has a 5-year warranty."
+        "suits_me_reason": "..."
       }
     `;
 
