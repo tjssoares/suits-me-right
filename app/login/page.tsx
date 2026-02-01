@@ -30,6 +30,15 @@ export default function LoginPage() {
     }
     setLoading(false);
   };
+<button 
+  onClick={async () => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    setMessage(error ? error.message : "Password reset email sent!");
+  }} 
+  className="text-xs text-gray-500 hover:text-white mt-4 underline block mx-auto"
+>
+  Forgot your password?
+</button>
 
   return (
     <div className="min-h-screen bg-black text-white flex items-center justify-center p-6">
