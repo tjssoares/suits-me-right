@@ -10,42 +10,46 @@ export async function POST(req: Request) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
     
-    // We stick with gemini-2.0-flash as it's the most stable for search right now
+    // REMOVED: responseMimeType: "application/json"
+    // This allows the Search tool to function without the 400 Bad Request error.
     const model = genAI.getGenerativeModel({ 
       model: "gemini-2.0-flash",
-      tools: [{ googleSearch: {} }],
-      // FORCE JSON mode at the configuration level
-      generationConfig: {
-        responseMimeType: "application/json",
-      }
+      tools: [{ googleSearch: {} }] 
     });
 
     const prompt = `
-      Perform a market audit for: "${productQuery}" in ${location || "United Kingdom"}.
-      You MUST return a JSON object with this EXACT structure:
+      Search for: "${productQuery}" in ${location || "United Kingdom"}.
+      Find current NEW prices from retailers like Argos/Amazon/Currys and USED prices from eBay/BackMarket.
+      
+      CRITICAL: You must respond ONLY with a valid JSON object. 
+      Do not include "I found this" or any introductory text.
+      
+      JSON STRUCTURE:
       {
         "main_product": {
           "name": "string",
           "image": "string",
-          "stars": number,
+          "stars": 4.5,
           "new_deals": [{"vendor": "string", "price": "string", "url": "string"}],
           "used_deals": [{"vendor": "string", "price": "string", "url": "string"}]
         },
-        "suits_me_reason": "string"
+        "suits_me_reason": "Provide a high-quality summary of why this product is a good or bad buy based on current UK market trends."
       }
-      Do not include any text before or after the JSON.
     `;
 
     const result = await model.generateContent(prompt);
     const responseText = result.response.text();
 
-    // IMPROVED CLEANING: Use Regex to find the FIRST { and the LAST }
-    // This ignores any grounding text Google adds at the end.
+    /**
+     * CLEANING LOGIC:
+     * Since we can't use 'Controlled Generation', the model might add 
+     * Markdown backticks (```json) or Search Citations at the end.
+     * This regex extracts ONLY the JSON block.
+     */
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     
     if (!jsonMatch) {
-      console.error("No JSON found in response:", responseText);
-      throw new Error("AI did not return valid JSON format.");
+      throw new Error("AI failed to generate a valid JSON data block.");
     }
 
     const cleanJson = jsonMatch[0];
@@ -54,9 +58,9 @@ export async function POST(req: Request) {
     return NextResponse.json(parsedData);
 
   } catch (error: any) {
-    console.error("Gemini Error:", error.message);
+    console.error("Gemini API Error:", error.message);
     return NextResponse.json({ 
-      error: `Audit failed: ${error.message}. Please try again.` 
+      error: `Audit failed: ${error.message}. Try refreshing or using a simpler product name.` 
     }, { status: 500 });
   }
 }
