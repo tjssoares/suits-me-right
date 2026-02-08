@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Star, ExternalLink, CheckCircle2, ShieldCheck, Package, ShoppingBag } from "lucide-react";
+import { Star, ExternalLink, CheckCircle2, ShieldCheck, Package, ShoppingBag, History } from "lucide-react";
 
 interface AnalysisResultsProps {
   analysis: any;
   user: any;
+  isHistorical?: boolean; // Added this prop
 }
 
-// Helper component to handle image errors gracefully
 const ProductImage = ({ src, alt, className }: { src: string, alt: string, className?: string }) => {
   const [error, setError] = useState(false);
 
@@ -19,18 +19,10 @@ const ProductImage = ({ src, alt, className }: { src: string, alt: string, class
       </div>
     );
   }
-
-  return (
-    <img 
-      src={src} 
-      alt={alt} 
-      className={className} 
-      onError={() => setError(true)}
-    />
-  );
+  return <img src={src} alt={alt} className={className} onError={() => setError(true)} />;
 };
 
-export default function AnalysisResults({ analysis, user }: AnalysisResultsProps) {
+export default function AnalysisResults({ analysis, user, isHistorical = false }: AnalysisResultsProps) {
   if (!analysis || !analysis.main_product) return null;
 
   const { main_product, suits_me_reason } = analysis;
@@ -38,6 +30,14 @@ export default function AnalysisResults({ analysis, user }: AnalysisResultsProps
   return (
     <div className="mt-8 space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
       
+      {/* HISTORICAL BADGE */}
+      {isHistorical && (
+        <div className="flex items-center justify-center gap-2 bg-zinc-100 text-zinc-500 py-2 rounded-full text-xs font-bold uppercase tracking-wider mb-[-20px]">
+          <History className="w-3 h-3" />
+          Showing Historical Result
+        </div>
+      )}
+
       {/* MAIN PRODUCT HERO */}
       <section className="bg-white rounded-3xl shadow-sm border border-zinc-200 overflow-hidden">
         <div className="flex flex-col md:flex-row">
@@ -70,7 +70,7 @@ export default function AnalysisResults({ analysis, user }: AnalysisResultsProps
         </div>
       </section>
 
-      {/* SUITS ME RIGHT AREA (PREMIUM) */}
+      {/* SUITS ME RIGHT ANALYSIS */}
       <section className="relative overflow-hidden bg-gradient-to-br from-indigo-600 to-violet-700 rounded-3xl p-8 text-white shadow-xl">
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-4">
@@ -92,18 +92,17 @@ export default function AnalysisResults({ analysis, user }: AnalysisResultsProps
             ) : (
               <div className="text-center py-6">
                 <p className="text-indigo-100 mb-4">You are viewing the basic summary.</p>
-                <div className="inline-block bg-white text-indigo-600 px-6 py-2 rounded-full font-bold text-sm">
+                <Link href="/login" className="inline-block bg-white text-indigo-600 px-6 py-2 rounded-full font-bold text-sm">
                   Sign in for Full AI Analysis
-                </div>
+                </Link>
               </div>
             )}
           </div>
         </div>
-        {/* Abstract background shape */}
         <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
       </section>
 
-      {/* COMPETITORS SECTION */}
+      {/* MARKET RIVALS */}
       <section>
         <h2 className="text-xl font-bold text-zinc-800 mb-6 flex items-center gap-2">
           Market Rivals & Alternatives
@@ -140,7 +139,6 @@ export default function AnalysisResults({ analysis, user }: AnalysisResultsProps
                 </ul>
               </div>
 
-              {/* Robust Link Handling */}
               <div className="pt-4 border-t border-zinc-100 mt-auto">
                  {comp.url ? (
                     <a 
@@ -162,8 +160,8 @@ export default function AnalysisResults({ analysis, user }: AnalysisResultsProps
         </div>
       </section>
 
-      {/* LIVE DEALS (Only show if data exists) */}
-      {main_product.new_deals && main_product.new_deals.length > 0 && (
+      {/* LIVE DEALS (HIDDEN IF HISTORICAL) */}
+      {!isHistorical && main_product.new_deals && main_product.new_deals.length > 0 && (
         <section>
             <h2 className="text-sm font-black text-zinc-400 uppercase tracking-[0.2em] mb-6">
                 Verified Vendor Links
