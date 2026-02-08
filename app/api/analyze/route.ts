@@ -5,55 +5,42 @@ export async function POST(req: Request) {
   try {
     const { productQuery } = await req.json();
 
-    // This setup allows your Gemini Key to work with the OpenAI library
+    // FAIL-SAFE: Check if key exists before trying to use it
+    const apiKey = process.env.OPENAI_API_KEY;
+    
+    if (!apiKey) {
+      console.error("CRITICAL ERROR: OPENAI_API_KEY is not set in Vercel Environment Variables.");
+      return NextResponse.json({ error: "API Key missing in server environment." }, { status: 500 });
+    }
+
+    // Initialize OpenAI with Gemini's address
     const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY, 
+      apiKey: apiKey,
       baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/"
     });
 
     const completion = await openai.chat.completions.create({
-      model: "gemini-1.5-flash", // Gemini's fast, reliable model
+      model: "gemini-1.5-flash", // Best free-tier model for this
       messages: [
         {
           role: "system",
-          content: `You are a Senior Product Consultant and Durability Auditor. Your job is to prevent users from making bad purchases by analyzing their intent.
-
-          STRICT RULES:
-          1. DURABILITY SCORE: Calculate a score based on:
-             - 0-40: Fragile or "End of Life" (No more updates).
-             - 41-70: Average consumer tech.
-             - 71-90: High-quality, repairable.
-             - 91-100: "Buy it for Life" quality.
-          
-          2. USER INTENT: Identify WHY the user wants this model.
-          3. STRATEGIC ALTERNATIVES: Suggest a Value, Performance, and Modern alternative.
-
-          RETURN JSON ONLY:
+          content: `You are a Senior Product Consultant. RETURN JSON ONLY:
           {
             "main_product": {
-              "name": "Full Product Name",
-              "public_summary": "Current standing in 2026.",
-              "durability": 0, 
-              "stars": 0.0,
-              "qualities": ["Highlight 1", "Highlight 2"],
+              "name": "Product Name",
+              "public_summary": "Summary of status in 2026",
+              "durability": 80,
+              "stars": 4.5,
+              "qualities": ["Quality 1"],
               "image": "",
-              "competitors": [
-                {
-                  "name": "Alternative Name",
-                  "price": "Price Range",
-                  "stars": 4.5,
-                  "highlights": ["Advantage 1", "Advantage 2"],
-                  "url": "#",
-                  "image": ""
-                }
-              ]
+              "competitors": []
             },
-            "suits_me_reason": "Deep-dive analysis text."
+            "suits_me_reason": "Analysis text"
           }`
         },
         {
           role: "user",
-          content: `Analyze this product query: ${productQuery}`
+          content: `Analyze: ${productQuery}`
         }
       ],
       response_format: { type: "json_object" },
@@ -63,7 +50,7 @@ export async function POST(req: Request) {
     return NextResponse.json(data);
 
   } catch (error: any) {
-    console.error("API Error:", error);
+    console.error("API Error:", error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
