@@ -1,68 +1,25 @@
-import { NextResponse } from "next/server";
-import OpenAI from "openai";
+"use client";
 
-export async function POST(req: Request) {
-  try {
-    const { productQuery } = await req.json();
+import React from "react";
 
-    // 1. Verify API Key exists in Vercel
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      console.error("Vercel Error: OPENAI_API_KEY environment variable is missing.");
-      return NextResponse.json({ error: "API configuration missing on server." }, { status: 500 });
-    }
+export default function AnalysisResults({ results }: { results: any }) {
+  if (!results) return null;
 
-    // 2. The "Magic" Configuration for Gemini Free Tier
-    const openai = new OpenAI({
-      apiKey: apiKey,
-      baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/"
-    });
-
-    // 3. Request analysis using Gemini 1.5 Flash
-    const completion = await openai.chat.completions.create({
-      model: "gemini-1.5-flash", 
-      messages: [
-        {
-          role: "system",
-          content: `You are a Senior Product Consultant. 
-          Return ONLY a JSON object with this structure:
-          {
-            "main_product": {
-              "name": "string",
-              "public_summary": "string",
-              "durability": number,
-              "stars": number,
-              "qualities": ["string"],
-              "image": "string",
-              "competitors": []
-            },
-            "suits_me_reason": "string"
-          }`
-        },
-        {
-          role: "user",
-          content: `Analyze the following product for durability and value in 2026: ${productQuery}`
-        }
-      ],
-      // We use 'json_object' to ensure the output is clean
-      response_format: { type: "json_object" },
-    });
-
-    const content = completion.choices[0].message.content;
-    
-    if (!content) {
-      throw new Error("AI returned an empty response.");
-    }
-
-    const data = JSON.parse(content);
-    return NextResponse.json(data);
-
-  } catch (error: any) {
-    // This logs the specific error (like a 401 or 404) to your Vercel logs
-    console.error("API Error Detailed:", error);
-    return NextResponse.json(
-      { error: error.message || "An unexpected error occurred." }, 
-      { status: error.status || 500 }
-    );
-  }
+  return (
+    <div className="mt-8 p-6 bg-white rounded-2xl shadow-sm border border-zinc-200">
+      <h2 className="text-2xl font-bold text-zinc-800 mb-2">
+        {results.main_product?.name}
+      </h2>
+      <p className="text-zinc-600 mb-4">
+        {results.main_product?.public_summary}
+      </p>
+      
+      <div className="bg-zinc-900 text-white p-4 rounded-xl">
+        <h3 className="text-sm font-bold uppercase tracking-widest opacity-70 mb-2">
+          AI Verdict
+        </h3>
+        <p>{results.suits_me_reason}</p>
+      </div>
+    </div>
+  );
 }
