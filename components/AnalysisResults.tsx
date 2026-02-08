@@ -1,11 +1,34 @@
 "use client";
 
-import { Star, ExternalLink, CheckCircle2, ShieldCheck } from "lucide-react";
+import { useState } from "react";
+import { Star, ExternalLink, CheckCircle2, ShieldCheck, Package, ShoppingBag } from "lucide-react";
 
 interface AnalysisResultsProps {
   analysis: any;
-  user: any; // Passed from page.tsx to check if registered
+  user: any;
 }
+
+// Helper component to handle image errors gracefully
+const ProductImage = ({ src, alt, className }: { src: string, alt: string, className?: string }) => {
+  const [error, setError] = useState(false);
+
+  if (error || !src) {
+    return (
+      <div className={`${className} bg-zinc-100 flex items-center justify-center`}>
+        <Package className="w-12 h-12 text-zinc-300" />
+      </div>
+    );
+  }
+
+  return (
+    <img 
+      src={src} 
+      alt={alt} 
+      className={className} 
+      onError={() => setError(true)}
+    />
+  );
+};
 
 export default function AnalysisResults({ analysis, user }: AnalysisResultsProps) {
   if (!analysis || !analysis.main_product) return null;
@@ -13,23 +36,22 @@ export default function AnalysisResults({ analysis, user }: AnalysisResultsProps
   const { main_product, suits_me_reason } = analysis;
 
   return (
-    <div className="mt-8 space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="mt-8 space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
       
       {/* MAIN PRODUCT HERO */}
-      <section className="bg-white rounded-2xl shadow-sm border border-zinc-200 overflow-hidden">
+      <section className="bg-white rounded-3xl shadow-sm border border-zinc-200 overflow-hidden">
         <div className="flex flex-col md:flex-row">
           <div className="w-full md:w-2/5 bg-zinc-50 p-8 flex items-center justify-center border-b md:border-b-0 md:border-r border-zinc-200">
-            <img 
+            <ProductImage 
               src={main_product.image} 
               alt={main_product.name} 
-              className="max-h-72 object-contain mix-blend-multiply shadow-lg rounded-lg"
-              onError={(e: any) => { e.target.src = "https://via.placeholder.com/400?text=Product+Image"; }}
+              className="max-h-72 object-contain mix-blend-multiply rounded-lg w-full h-full"
             />
           </div>
           <div className="flex-1 p-8">
             <div className="flex justify-between items-start mb-4">
               <h1 className="text-3xl font-bold text-zinc-900">{main_product.name}</h1>
-              <div className="flex items-center gap-1 bg-yellow-50 px-3 py-1 rounded-full">
+              <div className="flex items-center gap-1 bg-yellow-50 px-3 py-1 rounded-full border border-yellow-100">
                 <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
                 <span className="font-bold text-yellow-700">{main_product.stars || 5}</span>
               </div>
@@ -49,14 +71,14 @@ export default function AnalysisResults({ analysis, user }: AnalysisResultsProps
       </section>
 
       {/* SUITS ME RIGHT AREA (PREMIUM) */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-indigo-600 to-violet-700 rounded-2xl p-8 text-white shadow-xl">
+      <section className="relative overflow-hidden bg-gradient-to-br from-indigo-600 to-violet-700 rounded-3xl p-8 text-white shadow-xl">
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-4">
             <ShieldCheck className="w-8 h-8 text-indigo-200" />
             <h2 className="text-2xl font-extrabold tracking-tight italic">Suits Me Right Analysis</h2>
           </div>
           
-          <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
             {user ? (
               <div className="space-y-4">
                 <p className="text-indigo-50 leading-relaxed whitespace-pre-line text-lg italic">
@@ -70,9 +92,9 @@ export default function AnalysisResults({ analysis, user }: AnalysisResultsProps
             ) : (
               <div className="text-center py-6">
                 <p className="text-indigo-100 mb-4">You are viewing the basic summary.</p>
-                <button className="bg-white text-indigo-600 px-6 py-2 rounded-full font-bold hover:bg-indigo-50 transition">
+                <div className="inline-block bg-white text-indigo-600 px-6 py-2 rounded-full font-bold text-sm">
                   Sign in for Full AI Analysis
-                </button>
+                </div>
               </div>
             )}
           </div>
@@ -88,21 +110,26 @@ export default function AnalysisResults({ analysis, user }: AnalysisResultsProps
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {main_product.competitors?.map((comp: any, idx: number) => (
-            <div key={idx} className="bg-white border border-zinc-200 rounded-xl p-6 hover:shadow-md transition group">
-              <div className="flex gap-4">
-                <div className="w-24 h-24 flex-shrink-0">
-                  <img src={comp.image} className="w-full h-full object-contain rounded-lg" alt={comp.name} />
+            <div key={idx} className="bg-white border border-zinc-200 rounded-2xl p-6 hover:shadow-md transition group flex flex-col h-full">
+              <div className="flex gap-4 mb-4">
+                <div className="w-20 h-20 flex-shrink-0 bg-zinc-50 rounded-xl overflow-hidden border border-zinc-100">
+                   <ProductImage 
+                      src={comp.image} 
+                      alt={comp.name} 
+                      className="w-full h-full object-contain p-2"
+                    />
                 </div>
                 <div className="flex-1">
                   <h3 className="font-bold text-zinc-900 group-hover:text-indigo-600 transition">{comp.name}</h3>
                   <p className="text-emerald-600 font-bold mb-1">{comp.price}</p>
-                  <div className="flex items-center gap-1 mb-3">
+                  <div className="flex items-center gap-1">
                     <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
                     <span className="text-xs font-bold text-zinc-500">{comp.stars} Rating</span>
                   </div>
                 </div>
               </div>
-              <div className="mt-4 pt-4 border-t border-zinc-100">
+              
+              <div className="flex-1">
                 <ul className="space-y-2 mb-6">
                   {comp.highlights?.map((h: string, i: number) => (
                     <li key={i} className="text-sm text-zinc-600 flex items-start gap-2">
@@ -111,18 +138,55 @@ export default function AnalysisResults({ analysis, user }: AnalysisResultsProps
                     </li>
                   ))}
                 </ul>
-                <a 
-                  href={comp.url} 
-                  target="_blank" 
-                  className="flex items-center justify-center gap-2 w-full py-2 bg-zinc-50 hover:bg-zinc-100 rounded-lg text-sm font-semibold text-zinc-700 transition"
-                >
-                  Product Details <ExternalLink className="w-3 h-3" />
-                </a>
+              </div>
+
+              {/* Robust Link Handling */}
+              <div className="pt-4 border-t border-zinc-100 mt-auto">
+                 {comp.url ? (
+                    <a 
+                      href={comp.url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-2 w-full py-2 bg-zinc-50 hover:bg-zinc-100 rounded-lg text-sm font-semibold text-zinc-700 transition"
+                    >
+                      Product Details <ExternalLink className="w-3 h-3" />
+                    </a>
+                 ) : (
+                    <span className="flex items-center justify-center w-full py-2 bg-zinc-50 text-zinc-400 text-sm rounded-lg cursor-not-allowed">
+                       Link Unavailable
+                    </span>
+                 )}
               </div>
             </div>
           ))}
         </div>
       </section>
+
+      {/* LIVE DEALS (Only show if data exists) */}
+      {main_product.new_deals && main_product.new_deals.length > 0 && (
+        <section>
+            <h2 className="text-sm font-black text-zinc-400 uppercase tracking-[0.2em] mb-6">
+                Verified Vendor Links
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {main_product.new_deals.map((deal: any, i: number) => (
+                <a 
+                    key={i} 
+                    href={deal.url} 
+                    target="_blank" 
+                    className="flex flex-col p-4 bg-white border border-zinc-200 rounded-2xl hover:shadow-lg hover:border-indigo-300 transition group"
+                >
+                    <div className="flex justify-between items-center mb-1">
+                        <span className="text-xs font-bold text-zinc-400 uppercase">{deal.vendor}</span>
+                        <ShoppingBag className="w-4 h-4 text-zinc-300 group-hover:text-indigo-500 transition"/>
+                    </div>
+                    <span className="text-xl font-black text-zinc-900 group-hover:text-indigo-600 transition">{deal.price}</span>
+                    <span className="mt-2 text-[10px] font-bold text-indigo-500 uppercase">Go to Store →</span>
+                </a>
+                ))}
+            </div>
+        </section>
+      )}
 
     </div>
   );
