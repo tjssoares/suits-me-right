@@ -15,38 +15,48 @@ export async function POST(req: Request) {
     });
 
     const prompt = `
-      Perform a professional market audit for: "${productQuery}" in ${location || "United Kingdom"}.
+      Deep Audit: "${productQuery}" in ${location || "United Kingdom"}.
       
-      CRITICAL INSTRUCTIONS:
-      1. IMAGES: Find a direct, high-quality URL of the product image.
-      2. NEW DEALS: Search Amazon.co.uk, Argos, and Currys. Provide EXACT direct product page URLs and current prices.
-      3. USED DEALS: Search eBay.co.uk and Back Market for refurbished/used prices and direct listing URLs.
-      4. QUALITIES: List 3-4 key technical features or pros of this specific product.
-      5. COMPETITORS: Find 2 similar products currently on the market and their typical UK price points.
-      
-      RESPONSE FORMAT: You must respond ONLY with a valid JSON object. No intro text, no markdown code blocks.
-      
+      REQUIRED SECTIONS:
+      1. PUBLIC SUMMARY: A 250-word objective summary. Source data from official manufacturer specs, top retailer reviews (Amazon/Argos), and expert YouTube consensus. Focus on performance, build quality, and "who it is for." 
+      2. LINKS: Find DIRECT product page URLs for Amazon.co.uk, Argos, and Currys. Do NOT provide search result pages or homepages.
+      3. IMAGE: Find a direct image URL (ending in .jpg, .png, or .webp) from a reputable source.
+      4. USED DEALS: Search eBay and BackMarket for specific listing price ranges.
+      5. COMPARISON: Compare against 2 main market rivals.
+      6. PREMIUM REASONING: (Only for registered users) Personal value analysis.
+
+      CRITICAL FORMATTING:
+      - Return ONLY valid JSON.
+      - Use \\n for all newlines. Do NOT use actual line breaks in the string.
+      - If a link or image is not found, return an empty string "".
+
       JSON STRUCTURE:
       {
         "main_product": {
-          "name": "Full Official Product Name",
+          "name": "Full Name",
           "image": "DIRECT_IMAGE_URL",
-          "stars": 4.5,
-          "qualities": ["Feature 1", "Feature 2", "Feature 3"],
-          "new_deals": [{"vendor": "Retailer Name", "price": "£XX.XX", "url": "DIRECT_PRODUCT_URL"}],
-          "used_deals": [{"vendor": "eBay/BackMarket", "price": "£XX.XX", "url": "DIRECT_LISTING_URL"}],
-          "competitors": [{"name": "Competitor Model", "price": "£XX.XX"}]
+          "public_summary": "250-word text here...",
+          "qualities": ["Feature 1", "Feature 2"],
+          "new_deals": [{"vendor": "Name", "price": "£X", "url": "DIRECT_URL"}],
+          "used_deals": [{"vendor": "Name", "price": "£X", "url": "URL"}],
+          "competitors": [{"name": "Rival", "price": "£X"}]
         },
-        "suits_me_reason": "Provide a deep 3-paragraph analysis. Paragraph 1: Value for money vs competitors. Paragraph 2: Build quality and longevity. Paragraph 3: Market trend (is now a good time to buy?)."
+        "suits_me_reason": "Premium text here..."
       }
     `;
 
     const result = await model.generateContent(prompt);
-    const responseText = result.response.text();
+    let responseText = result.response.text();
 
-    // Cleaning logic to extract JSON even if the AI adds text around it
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("AI failed to generate a valid data block.");
+    // CLEANING LOGIC: Remove potential markdown wrappers and bad control characters
+    const cleanJsonString = responseText
+      .replace(/```json/g, "")
+      .replace(/```/g, "")
+      .replace(/[\u0000-\u001F\u007F-\u009F]/g, "") // Removes hidden control characters
+      .trim();
+
+    const jsonMatch = cleanJsonString.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("AI output was not valid JSON.");
 
     return NextResponse.json(JSON.parse(jsonMatch[0]));
 
