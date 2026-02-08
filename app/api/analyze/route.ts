@@ -1,77 +1,72 @@
-// File Location: app/api/analyze/route.ts
-
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
+import OpenAI from "openai";
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 export async function POST(req: Request) {
   try {
-    const { productQuery, userId, location } = await req.json();
-    const apiKey = process.env.GEMINI_API_KEY;
+    const { productQuery, userId } = await req.json();
 
-    if (!apiKey) return NextResponse.json({ error: "API Key missing" }, { status: 500 });
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content: `You are a Senior Product Consultant and Durability Auditor. Your job is to prevent users from making bad purchases by analyzing their intent.
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ 
-      model: "gemini-2.0-flash",
-      tools: [{ googleSearch: {} }] 
+          STRICT RULES:
+          1. DURABILITY SCORE: Do NOT default to 85. Calculate a score based on:
+             - 0-40: Fragile, poor battery, or "End of Life" (No more software updates).
+             - 41-70: Average consumer tech, decent but has a shelf life.
+             - 71-90: High-quality build, repairable, good manufacturer support.
+             - 91-100: "Buy it for Life" quality (Cast iron, enterprise-grade gear).
+          
+          2. USER INTENT ANALYSIS: 
+             Identify WHY the user is looking at this specific model. 
+             If it's an older model (like Surface Pro 4), are they after the price, the form factor, or a specific feature?
+          
+          3. STRATEGIC ALTERNATIVES:
+             Suggest rivals that "Bridge the Gap." If the searched product is old, suggest the oldest model of that line that STILL supports modern OS (e.g., Surface Pro 6 for Win 11). 
+             Suggest one "Value" alternative, one "Performance" alternative, and one "Modern" alternative.
+
+          RETURN JSON ONLY:
+          {
+            "main_product": {
+              "name": "Full Product Name",
+              "public_summary": "Identify the product's 'Current Standing' in 2026. Mention software support/support status.",
+              "durability": 0, 
+              "stars": 0.0,
+              "qualities": ["Highlight 1", "Highlight 2"],
+              "image": "Search for a valid image URL or leave empty",
+              "competitors": [
+                {
+                  "name": "Alternative Name",
+                  "price": "Price Range",
+                  "stars": 4.5,
+                  "highlights": ["Why this solves the 'Legacy Problem'", "Key advantage"],
+                  "url": "Search URL",
+                  "image": ""
+                }
+              ]
+            },
+            "suits_me_reason": "Provide a deep-dive analysis. 'You are likely looking at the [Product] because of its [Estimated Intent]. However, you should be aware of [Critical Issue]. We suggest [Strategic Alternative] because it offers [Benefit] while remaining budget-friendly.'"
+          }`
+        },
+        {
+          role: "user",
+          content: `Analyze this product query and provide strategic alternatives based on 2026 standards: ${productQuery}`
+        }
+      ],
+      response_format: { type: "json_object" },
     });
 
-    const prompt = `
-      Perform a deep market audit for: "${productQuery}" in ${location || "United Kingdom"}.
-      
-      INSTRUCTIONS:
-      1. PUBLIC SUMMARY: Provide a 250-word objective summary of the product based on manufacturer specs and top tech reviews.
-      2. MAIN IMAGE: Find a direct, high-quality URL for the main product image.
-      3. VENDOR LINKS: Find EXACT product page links and prices at Amazon.co.uk, Argos.co.uk, and Currys.
-      4. USED DEALS: Find search results for eBay.co.uk and BackMarket.
-      5. COMPETITORS: Find 2 rival products. For each, provide: Name, Price, a direct IMAGE URL, a Star Rating (1-5), and 3 short topics on why they are competitors.
-      6. SUITS ME REASON: Write 3 paragraphs for a registered user analyzing value, longevity (durability), and personalized fit.
-      
-      CRITICAL: You must respond ONLY with a valid JSON object. Use \\n for newlines.
-      
-      JSON STRUCTURE:
-      {
-        "main_product": {
-          "name": "Full Product Name",
-          "image": "DIRECT_IMAGE_URL",
-          "public_summary": "250-word summary...",
-          "stars": 4.8,
-          "durability": 85,
-          "qualities": ["Feature 1", "Feature 2"],
-          "new_deals": [{"vendor": "Amazon", "price": "£XX.XX", "url": "DIRECT_URL"}],
-          "used_deals": [{"vendor": "eBay", "price": "£XX.XX", "url": "DIRECT_URL"}],
-          "competitors": [
-            {
-              "name": "Competitor Name", 
-              "price": "£XX.XX", 
-              "image": "URL", 
-              "stars": 4.5, 
-              "highlights": ["Point 1", "Point 2", "Point 3"],
-              "url": "DIRECT_URL"
-            }
-          ]
-        },
-        "suits_me_reason": "3-paragraph analysis for premium users."
-      }
-    `;
-
-    const result = await model.generateContent(prompt);
-    let responseText = result.response.text();
-
-    // CLEANING: This fixes the "Bad control character" error by stripping hidden line breaks
-    const cleanJsonString = responseText
-      .replace(/```json/g, "")
-      .replace(/```/g, "")
-      .replace(/[\u0000-\u001F\u007F-\u009F]/g, "") 
-      .trim();
-
-    const jsonMatch = cleanJsonString.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("AI failed to generate a valid data block.");
-
-    return NextResponse.json(JSON.parse(jsonMatch[0]));
+    const data = JSON.parse(completion.choices[0].message.content || "{}");
+    return NextResponse.json(data);
 
   } catch (error: any) {
-    console.error("Gemini Error:", error.message);
-    return NextResponse.json({ error: `Audit failed: ${error.message}` }, { status: 500 });
+    console.error("API Error:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
