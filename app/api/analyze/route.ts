@@ -17,30 +17,32 @@ export async function POST(req: Request) {
     const prompt = `
       Perform a deep market audit for: "${productQuery}" in ${location || "United Kingdom"}.
       
-      1. Use Google Search to find LIVE prices for NEW items from: Amazon.co.uk, Argos, and Currys.
-      2. Use Google Search to find LIVE prices for USED/REFURBISHED items from: eBay.co.uk and BackMarket.
+      INSTRUCTIONS:
+      1. Use Google Search to find the EXACT product page links (not homepages) and current prices at Amazon.co.uk, Argos.co.uk, and Currys.
+      2. Find the EXACT search result or listing link for USED/REFURBISHED versions on eBay.co.uk and BackMarket.
+      3. Find a direct, high-quality IMAGE URL for this specific product.
       
-      CRITICAL: Respond ONLY with a JSON object. Do not include markdown code blocks (like \`\`\`json).
+      CRITICAL: You must respond ONLY with a valid JSON object. No markdown, no intro.
       
-      STRUCTURE:
+      JSON STRUCTURE:
       {
         "main_product": {
-          "name": "Full official product name",
-          "image": "Direct image URL if found, else empty string",
-          "stars": 4.5,
-          "new_deals": [{"vendor": "Retailer Name", "price": "£ price", "url": "URL"}],
-          "used_deals": [{"vendor": "Retailer Name", "price": "£ price", "url": "URL"}]
+          "name": "Full Product Name",
+          "image": "DIRECT_IMAGE_URL",
+          "stars": 4.8,
+          "new_deals": [{"vendor": "Amazon", "price": "£XX.XX", "url": "DIRECT_URL"}],
+          "used_deals": [{"vendor": "eBay", "price": "£XX.XX", "url": "DIRECT_URL"}]
         },
-        "suits_me_reason": "A detailed 3-paragraph analysis of whether this is a good buy. Mention price trends and value for money specifically for a user in ${location}."
+        "suits_me_reason": "Provide 3 detailed paragraphs analyzing value for money, price trends, and local availability."
       }
     `;
 
     const result = await model.generateContent(prompt);
     const responseText = result.response.text();
 
-    // Clean logic to handle grounding text leakage
+    // Cleaning logic to ensure only JSON is parsed
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("AI failed to generate data.");
+    if (!jsonMatch) throw new Error("AI failed to generate a valid data block.");
 
     return NextResponse.json(JSON.parse(jsonMatch[0]));
 
