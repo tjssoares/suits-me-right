@@ -12,6 +12,9 @@ export default function HomePage() {
   const [location, setLocation] = useState('United Kingdom');
   const [user, setUser] = useState<any>(null);
   const [mounted, setMounted] = useState(false);
+  
+  // State to force Sidebar to re-fetch when a new search is saved
+  const [sidebarKey, setSidebarKey] = useState(0);
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -57,9 +60,9 @@ export default function HomePage() {
 
       setAnalysis(data);
 
-      // SAVE TO HISTORY: Update your search_history table
+      // SAVE TO HISTORY
       if (user) {
-        await supabase.from('search_history').insert([
+        const { error: saveError } = await supabase.from('search_history').insert([
           { 
             user_id: user.id, 
             product_name: data.main_product.name,
@@ -67,6 +70,11 @@ export default function HomePage() {
             result: data 
           }
         ]);
+        
+        if (!saveError) {
+          // Trigger sidebar refresh
+          setSidebarKey(prev => prev + 1);
+        }
       }
 
     } catch (e: any) {
@@ -80,8 +88,15 @@ export default function HomePage() {
   return (
     <div className="flex min-h-screen bg-[#020202] text-white font-sans">
       
-      {/* SIDEBAR COMPONENT */}
-      <Sidebar onSelectHistory={(historicalData) => setAnalysis(historicalData)} />
+      {/* SIDEBAR COMPONENT - Forced to refresh via key */}
+      <Sidebar 
+        key={sidebarKey} 
+        onSelectHistory={(historicalData) => {
+          setAnalysis(historicalData);
+          setQuery("");
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }} 
+      />
 
       {/* MAIN CONTENT AREA */}
       <div className="flex-1 overflow-y-auto p-4 md:p-8">
@@ -137,15 +152,25 @@ export default function HomePage() {
               {/* PRODUCT CARD */}
               <div className="bg-white/5 border border-white/10 rounded-[40px] p-8 md:p-12 shadow-2xl">
                 <div className="grid md:grid-cols-2 gap-12 items-center">
-                  <div className="bg-neutral-900 rounded-[35px] p-8 flex items-center justify-center min-h-[320px] border border-white/5 relative group">
+                  <div className="bg-neutral-900 rounded-[35px] p-8 flex items-center justify-center min-h-[320px] border border-white/5 relative group overflow-hidden">
                     <img 
                       src={analysis.main_product?.image} 
                       className="max-h-72 object-contain transition-transform group-hover:scale-105" 
-                      onError={(e:any) => e.target.src='https://placehold.co/400x400?text=No+Image+Found'} 
+                      onError={(e:any) => e.target.src='https://placehold.co/400x400?text=Image+Not+Available'} 
                     />
                   </div>
                   <div>
                     <h2 className="text-4xl font-black mb-4 leading-tight">{analysis.main_product?.name}</h2>
+                    
+                    {/* QUALITIES / KEY FEATURES */}
+                    <div className="flex flex-wrap gap-2 mb-6">
+                      {analysis.main_product?.qualities?.map((quality: string, idx: number) => (
+                        <span key={idx} className="text-[9px] font-black bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-3 py-1 rounded-full uppercase tracking-tighter">
+                          {quality}
+                        </span>
+                      ))}
+                    </div>
+
                     <div className="flex gap-1 mb-8">
                       {[...Array(5)].map((_, i) => (
                         <span key={i} className={i < Math.floor(analysis.main_product?.stars || 0) ? "text-yellow-400 text-2xl" : "text-white/10 text-2xl"}>★</span>
@@ -174,20 +199,35 @@ export default function HomePage() {
                           </a>
                         ))
                       ) : (
-                        <p className="text-xs text-gray-600 italic">No second-hand deals found for this query.</p>
+                        <p className="text-xs text-gray-600 italic">No direct second-hand links found.</p>
                       )}
                     </div>
                   </div>
                 </div>
+
+                {/* COMPETITOR COMPARISON TABLE */}
+                {analysis.main_product?.competitors?.length > 0 && (
+                  <div className="mt-12 pt-10 border-t border-white/5">
+                    <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-6">Market Alternatives</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {analysis.main_product.competitors.map((comp: any, i: number) => (
+                        <div key={i} className="bg-white/[0.02] border border-white/5 p-6 rounded-3xl flex justify-between items-center">
+                          <span className="font-bold text-gray-300">{comp.name}</span>
+                          <span className="text-indigo-400 font-black">{comp.price}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* SUITS ME RIGHT REASONING */}
               <section className="bg-indigo-600/10 border border-indigo-500/20 rounded-[40px] p-10 relative overflow-hidden shadow-2xl">
                  <h3 className="text-xl font-bold mb-6 text-indigo-300 italic tracking-tight">This suits me right because:</h3>
                  <div className={!user ? "filter blur-2xl opacity-10 pointer-events-none select-none" : "opacity-100"}>
-                   <p className="text-xl leading-relaxed text-indigo-50 font-medium whitespace-pre-line">
+                   <div className="text-lg leading-relaxed text-indigo-50 font-medium whitespace-pre-line space-y-4">
                      {analysis?.suits_me_reason || "No reasoning provided for this search."}
-                   </p>
+                   </div>
                  </div>
                  {!user && (
                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 backdrop-blur-md transition-all">
