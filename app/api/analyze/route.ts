@@ -1,3 +1,5 @@
+// File Location: app/api/analyze/route.ts
+
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 
@@ -15,48 +17,56 @@ export async function POST(req: Request) {
     });
 
     const prompt = `
-      Deep Audit: "${productQuery}" in ${location || "United Kingdom"}.
+      Perform a deep market audit for: "${productQuery}" in ${location || "United Kingdom"}.
       
-      REQUIRED SECTIONS:
-      1. PUBLIC SUMMARY: A 250-word objective summary. Source data from official manufacturer specs, top retailer reviews (Amazon/Argos), and expert YouTube consensus. Focus on performance, build quality, and "who it is for." 
-      2. LINKS: Find DIRECT product page URLs for Amazon.co.uk, Argos, and Currys. Do NOT provide search result pages or homepages.
-      3. IMAGE: Find a direct image URL (ending in .jpg, .png, or .webp) from a reputable source.
-      4. USED DEALS: Search eBay and BackMarket for specific listing price ranges.
-      5. COMPARISON: Compare against 2 main market rivals.
-      6. PREMIUM REASONING: (Only for registered users) Personal value analysis.
-
-      CRITICAL FORMATTING:
-      - Return ONLY valid JSON.
-      - Use \\n for all newlines. Do NOT use actual line breaks in the string.
-      - If a link or image is not found, return an empty string "".
-
+      INSTRUCTIONS:
+      1. PUBLIC SUMMARY: Provide a 250-word objective summary of the product based on manufacturer specs and top tech reviews.
+      2. MAIN IMAGE: Find a direct, high-quality URL for the main product image.
+      3. VENDOR LINKS: Find EXACT product page links and prices at Amazon.co.uk, Argos.co.uk, and Currys.
+      4. USED DEALS: Find search results for eBay.co.uk and BackMarket.
+      5. COMPETITORS: Find 2 rival products. For each, provide: Name, Price, a direct IMAGE URL, a Star Rating (1-5), and 3 short topics on why they are competitors.
+      6. SUITS ME REASON: Write 3 paragraphs for a registered user analyzing value, longevity (durability), and personalized fit.
+      
+      CRITICAL: You must respond ONLY with a valid JSON object. Use \\n for newlines.
+      
       JSON STRUCTURE:
       {
         "main_product": {
-          "name": "Full Name",
+          "name": "Full Product Name",
           "image": "DIRECT_IMAGE_URL",
-          "public_summary": "250-word text here...",
+          "public_summary": "250-word summary...",
+          "stars": 4.8,
+          "durability": 85,
           "qualities": ["Feature 1", "Feature 2"],
-          "new_deals": [{"vendor": "Name", "price": "£X", "url": "DIRECT_URL"}],
-          "used_deals": [{"vendor": "Name", "price": "£X", "url": "URL"}],
-          "competitors": [{"name": "Rival", "price": "£X"}]
+          "new_deals": [{"vendor": "Amazon", "price": "£XX.XX", "url": "DIRECT_URL"}],
+          "used_deals": [{"vendor": "eBay", "price": "£XX.XX", "url": "DIRECT_URL"}],
+          "competitors": [
+            {
+              "name": "Competitor Name", 
+              "price": "£XX.XX", 
+              "image": "URL", 
+              "stars": 4.5, 
+              "highlights": ["Point 1", "Point 2", "Point 3"],
+              "url": "DIRECT_URL"
+            }
+          ]
         },
-        "suits_me_reason": "Premium text here..."
+        "suits_me_reason": "3-paragraph analysis for premium users."
       }
     `;
 
     const result = await model.generateContent(prompt);
     let responseText = result.response.text();
 
-    // CLEANING LOGIC: Remove potential markdown wrappers and bad control characters
+    // CLEANING: This fixes the "Bad control character" error by stripping hidden line breaks
     const cleanJsonString = responseText
       .replace(/```json/g, "")
       .replace(/```/g, "")
-      .replace(/[\u0000-\u001F\u007F-\u009F]/g, "") // Removes hidden control characters
+      .replace(/[\u0000-\u001F\u007F-\u009F]/g, "") 
       .trim();
 
     const jsonMatch = cleanJsonString.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("AI output was not valid JSON.");
+    if (!jsonMatch) throw new Error("AI failed to generate a valid data block.");
 
     return NextResponse.json(JSON.parse(jsonMatch[0]));
 
