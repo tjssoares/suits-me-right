@@ -4,14 +4,12 @@ import { useState } from "react";
 import { Star, ExternalLink, CheckCircle2, ShieldCheck, Package, ShoppingBag } from "lucide-react";
 
 interface AnalysisResultsProps {
-  analysis: any;
-  user: any;
+  analysis: any; // Matches the 'analysis' variable in your page.tsx
+  user: any;     // Matches the 'user' variable in your page.tsx
 }
 
-// Helper component to handle image errors gracefully
 const ProductImage = ({ src, alt, className }: { src: string, alt: string, className?: string }) => {
   const [error, setError] = useState(false);
-
   if (error || !src) {
     return (
       <div className={`${className} bg-zinc-100 flex items-center justify-center`}>
@@ -19,7 +17,6 @@ const ProductImage = ({ src, alt, className }: { src: string, alt: string, class
       </div>
     );
   }
-
   return (
     <img 
       src={src} 
@@ -30,6 +27,7 @@ const ProductImage = ({ src, alt, className }: { src: string, alt: string, class
   );
 };
 
+// THE FIX: Ensure this is 'export default' so Next.js build finds it
 export default function AnalysisResults({ analysis, user }: AnalysisResultsProps) {
   if (!analysis || !analysis.main_product) return null;
 
@@ -99,7 +97,6 @@ export default function AnalysisResults({ analysis, user }: AnalysisResultsProps
             )}
           </div>
         </div>
-        {/* Abstract background shape */}
         <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
       </section>
 
@@ -140,7 +137,6 @@ export default function AnalysisResults({ analysis, user }: AnalysisResultsProps
                 </ul>
               </div>
 
-              {/* Robust Link Handling */}
               <div className="pt-4 border-t border-zinc-100 mt-auto">
                  {comp.url ? (
                     <a 
@@ -161,33 +157,6 @@ export default function AnalysisResults({ analysis, user }: AnalysisResultsProps
           ))}
         </div>
       </section>
-
-      {/* LIVE DEALS (Only show if data exists) */}
-      {main_product.new_deals && main_product.new_deals.length > 0 && (
-        <section>
-            <h2 className="text-sm font-black text-zinc-400 uppercase tracking-[0.2em] mb-6">
-                Verified Vendor Links
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {main_product.new_deals.map((deal: any, i: number) => (
-                <a 
-                    key={i} 
-                    href={deal.url} 
-                    target="_blank" 
-                    className="flex flex-col p-4 bg-white border border-zinc-200 rounded-2xl hover:shadow-lg hover:border-indigo-300 transition group"
-                >
-                    <div className="flex justify-between items-center mb-1">
-                        <span className="text-xs font-bold text-zinc-400 uppercase">{deal.vendor}</span>
-                        <ShoppingBag className="w-4 h-4 text-zinc-300 group-hover:text-indigo-500 transition"/>
-                    </div>
-                    <span className="text-xl font-black text-zinc-900 group-hover:text-indigo-600 transition">{deal.price}</span>
-                    <span className="mt-2 text-[10px] font-bold text-indigo-500 uppercase">Go to Store →</span>
-                </a>
-                ))}
-            </div>
-        </section>
-      )}
-
     </div>
   );
 }
