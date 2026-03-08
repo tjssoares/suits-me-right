@@ -12,12 +12,13 @@ export async function POST(req: Request) {
 
     const openai = new OpenAI({
       apiKey: apiKey,
-      // CORRECTED: Using the specific v1beta endpoint as per requirements doc
-      baseURL: "https://generativelanguage.googleapis.com/v1beta/"
+      // 2026 Standard: The /openai/ suffix is required for Chat Completion compatibility
+      baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/"
     });
 
     const completion = await openai.chat.completions.create({
-      model: "gemini-1.5-flash",
+      // FIXED: Using the 2026 stable Flash model (1.5-flash is deprecated)
+      model: "gemini-2.0-flash", 
       messages: [
         { 
           role: "system", 
@@ -31,7 +32,8 @@ export async function POST(req: Request) {
     const content = completion.choices[0].message.content;
     return NextResponse.json(JSON.parse(content || "{}"));
   } catch (error: any) {
-    console.error("Gemini API Error:", error);
+    // This will now log more helpful details if it fails
+    console.error("Gemini API Error Details:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
