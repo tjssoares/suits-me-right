@@ -12,8 +12,8 @@ export async function POST(req: Request) {
 
     const openai = new OpenAI({
       apiKey: apiKey,
-      // THE FIX: The exact 2026 endpoint for Gemini OpenAI compatibility
-      baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/"
+      // CORRECTED: Using the specific v1beta endpoint as per requirements doc
+      baseURL: "https://generativelanguage.googleapis.com/v1beta/"
     });
 
     const completion = await openai.chat.completions.create({
